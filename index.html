@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Click Vibe - Web3 Edition</title>
-    <!-- Modern Ethers and WalletConnect AppKit Scripts -->
+    <!-- Core Ethers and WalletConnect AppKit Scripts -->
     <script src="https://cloudflare.com"></script>
     <script type="module">
         import { WalletConnectModal } from 'https://unpkg.com';
@@ -16,7 +16,7 @@
         #coin { width: 180px; height: 180px; background: linear-gradient(135deg, #ffd700, #ffa500); border-radius: 50%; display: inline-block; cursor: pointer; line-height: 180px; font-size: 28px; color: #111; font-weight: bold; user-select: none; box-shadow: 0 0 25px rgba(255,215,0,0.4); margin: 20px 0; transition: transform 0.05s; }
         #coin:active { transform: scale(0.92); }
         button { padding: 12px 24px; font-size: 16px; cursor: pointer; background: #8247e5; color: white; border: none; border-radius: 8px; font-weight: bold; margin: 5px; }
-        button:disabled { background: #444; cursor: not-allowed; }
+        button:disabled { background: #444; color: #888; cursor: not-allowed; }
         .upgrade-card { background: #252538; padding: 12px; margin: 10px 0; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
         .status { color: #00ffcc; font-weight: bold; margin-bottom: 15px; }
     </style>
@@ -24,7 +24,7 @@
 <body>
     <div class="container">
         <h1>Click Vibe Web3</h1>
-        <button id="connectWalletBtn">🔌 Connect Wallet</button>
+        <button id="connectWalletBtn" disabled>⏳ Initializing System libraries...</button>
         <p id="walletStatus" class="status">Wallet Disconnected</p>
 
         <div id="coin">VIBE</div>
@@ -44,15 +44,32 @@
 
     <script>
         let tokens = 0; let currentMultiplier = 1; let userWalletAddress = ""; let activeProvider = null;
+        let isLibraryLoaded = false;
+        let modalInstance = null;
         
-        // 🚨 CONFIGURATION: Keep your addresses locked in here!
-        const DEVELOPER_WALLET = "0xbC3863d3c7d3a9c40B8BB01ac6e8A27DB721331D"; 
-        const BACKEND_URL = "https://click-vibe-backend.onrender.com"; // Ensure this matches your Render URL
+        // 📌 CONFIGURATION VARIABLES
+        const DEVELOPER_WALLET = "0xbC3863d3c7d3a9c40B8BB01ac6e8A27DB721331D"; // Your public Creator Wallet
+        const BACKEND_URL = "https://onrender.com"; // Your live Render backend URL
 
         const connectBtn = document.getElementById('connectWalletBtn');
         const walletStatus = document.getElementById('walletStatus');
         const coin = document.getElementById('coin');
         const balanceDisplay = document.getElementById('balance');
+
+        // Periodically verify network module integration readiness
+        const checkLibrarySync = setInterval(() => {
+            if (window.WalletConnectModal) {
+                clearInterval(checkLibrarySync);
+                isLibraryLoaded = true;
+                connectBtn.disabled = false;
+                connectBtn.innerText = "🔌 Connect Wallet";
+                
+                modalInstance = new window.WalletConnectModal({
+                    projectId: 'f941865c69784384b6f1fb7198e3b2e5',
+                    chains: ['eip155:137']
+                });
+            }
+        }, 500);
 
         // Handles secure wallet pairing
         async function initiateConnection() {
@@ -72,14 +89,12 @@
         }
 
         function fallbackToModal() {
-            if (!window.WalletConnectModal) return alert("System library initializing. Try again in 2 seconds.");
-            const modal = new window.WalletConnectModal({
-                projectId: 'f941865c69784384b6f1fb7198e3b2e5',
-                chains: ['eip155:137']
-            });
-            modal.openModal();
+            if (!isLibraryLoaded || !modalInstance) {
+                return alert("Network latency delay. Please wait 2 seconds.");
+            }
+            modalInstance.openModal();
             
-            // Listen for injected fallback bridge if mobile app triggers browser view
+            // Listen for injected connection if mobile app opens browser view
             const checkWallet = setInterval(async () => {
                 if (window.ethereum) {
                     clearInterval(checkWallet);
@@ -88,7 +103,7 @@
                     userWalletAddress = accounts[0];
                     walletStatus.innerText = `Connected: ${userWalletAddress.substring(0,6)}...`;
                     connectBtn.style.display = "none";
-                    modal.closeModal();
+                    modalInstance.closeModal();
                 }
             }, 1500);
         }
