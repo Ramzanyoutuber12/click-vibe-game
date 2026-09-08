@@ -4,7 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Click Vibe - Web3 Edition</title>
+    <!-- Modern Ethers and WalletConnect AppKit Scripts -->
     <script src="https://cloudflare.com"></script>
+    <script type="module">
+        import { WalletConnectModal } from 'https://unpkg.com';
+        window.WalletConnectModal = WalletConnectModal;
+    </script>
     <style>
         body { text-align: center; font-family: 'Segoe UI', sans-serif; background: #0d0d13; color: #fff; padding-top: 30px; }
         .container { max-width: 500px; margin: 0 auto; background: #1a1a24; padding: 25px; border-radius: 15px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
@@ -13,7 +18,6 @@
         button { padding: 12px 24px; font-size: 16px; cursor: pointer; background: #8247e5; color: white; border: none; border-radius: 8px; font-weight: bold; margin: 5px; }
         button:disabled { background: #444; cursor: not-allowed; }
         .upgrade-card { background: #252538; padding: 12px; margin: 10px 0; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
-        input { padding: 12px; width: 90%; border-radius: 8px; border: 1px solid #333; background: #111; color: #fff; margin-bottom: 15px; font-size: 14px; text-align: center; }
         .status { color: #00ffcc; font-weight: bold; margin-bottom: 15px; }
     </style>
 </head>
@@ -30,110 +34,109 @@
 
         <hr style="border-color: #333; margin: 20px 0;">
         <h3>⚡ Buy Speed Upgrades</h3>
-        
-        <div class="upgrade-card">
-            <span>🚀 10x Multiplier</span>
-            <button class="buy-btn" data-cost="0.5" data-mult="10">0.5 POL</button>
-        </div>
-        <div class="upgrade-card">
-            <span>🔥 100x Multiplier</span>
-            <button class="buy-btn" data-cost="2.0" data-mult="100">2.0 POL</button>
-        </div>
-        <div class="upgrade-card">
-            <span>👑 1,000x Multiplier</span>
-            <button class="buy-btn" data-cost="5.0" data-mult="1000">5.0 POL</button>
-        </div>
+        <div class="upgrade-card"><span>🚀 10x Multiplier</span><button class="buy-btn" data-cost="0.5" data-mult="10">0.5 POL</button></div>
+        <div class="upgrade-card"><span>🔥 100x Multiplier</span><button class="buy-btn" data-cost="2.0" data-mult="100">2.0 POL</button></div>
+        <div class="upgrade-card"><span>👑 1,000x Multiplier</span><button class="buy-btn" data-cost="5.0" data-mult="1000">5.0 POL</button></div>
 
         <hr style="border-color: #333; margin: 20px 0;">
         <button id="claimBtn" style="background: #00ffcc; color: #111; width: 100%; font-size: 18px;">Claim Click Vibe Tokens</button>
     </div>
 
     <script>
-        let tokens = 0;
-        let currentMultiplier = 1;
-        let userWalletAddress = "";
+        let tokens = 0; let currentMultiplier = 1; let userWalletAddress = ""; let activeProvider = null;
         
-        // 🚨 CONFIGURATION
+        // 🚨 CONFIGURATION: Keep your addresses locked in here!
         const DEVELOPER_WALLET = "0xbC3863d3c7d3a9c40B8BB01ac6e8A27DB721331D"; 
-        // 🔄 Change this link below once your Render backend is deployed!
-        const BACKEND_URL = "https://click-vibe-backend.onrender.com"; 
+        const BACKEND_URL = "https://onrender.com"; // Ensure this matches your Render URL
 
         const connectBtn = document.getElementById('connectWalletBtn');
         const walletStatus = document.getElementById('walletStatus');
         const coin = document.getElementById('coin');
         const balanceDisplay = document.getElementById('balance');
-        const multText = document.getElementById('multiplierText');
-        const perClickText = document.getElementById('perClickText');
 
-        // Web3 Connection
-        connectBtn.addEventListener('click', async () => {
+        // Handles secure wallet pairing
+        async function initiateConnection() {
             if (window.ethereum) {
                 try {
-                    const provider = new ethers.BrowserProvider(window.ethereum);
-                    const accounts = await provider.send("eth_requestAccounts", []);
+                    activeProvider = new ethers.BrowserProvider(window.ethereum);
+                    const accounts = await activeProvider.send("eth_requestAccounts", []);
                     userWalletAddress = accounts[0];
                     walletStatus.innerText = `Connected: ${userWalletAddress.substring(0,6)}...${userWalletAddress.substring(38)}`;
                     connectBtn.style.display = "none";
                 } catch (err) {
-                    alert("Wallet connection rejected.");
+                    fallbackToModal();
                 }
             } else {
-                alert("Please install MetaMask or a Web3 Wallet!");
+                fallbackToModal();
             }
-        });
+        }
 
-        // Click logic
+        function fallbackToModal() {
+            if (!window.WalletConnectModal) return alert("System library initializing. Try again in 2 seconds.");
+            const modal = new window.WalletConnectModal({
+                projectId: 'f941865c69784384b6f1fb7198e3b2e5',
+                chains: ['eip155:137']
+            });
+            modal.openModal();
+            
+            // Listen for injected fallback bridge if mobile app triggers browser view
+            const checkWallet = setInterval(async () => {
+                if (window.ethereum) {
+                    clearInterval(checkWallet);
+                    activeProvider = new ethers.BrowserProvider(window.ethereum);
+                    const accounts = await activeProvider.send("eth_requestAccounts", []);
+                    userWalletAddress = accounts[0];
+                    walletStatus.innerText = `Connected: ${userWalletAddress.substring(0,6)}...`;
+                    connectBtn.style.display = "none";
+                    modal.closeModal();
+                }
+            }, 1500);
+        }
+
+        connectBtn.addEventListener('click', initiateConnection);
+
         coin.addEventListener('click', () => {
             tokens += (1 * currentMultiplier);
             balanceDisplay.innerText = tokens.toLocaleString();
         });
 
-        // Handle POL Purchases for Multipliers
+        // Handle Upgrades
         document.querySelectorAll('.buy-btn').forEach(button => {
             button.addEventListener('click', async (e) => {
                 if (!userWalletAddress) return alert("Please connect your wallet first!");
-                
                 const costInPol = e.target.getAttribute('data-cost');
                 const targetMultiplier = parseInt(e.target.getAttribute('data-mult'));
 
                 try {
-                    e.target.disabled = true;
-                    e.target.innerText = "Processing...";
-
-                    const provider = new ethers.BrowserProvider(window.ethereum);
+                    e.target.disabled = true; e.target.innerText = "Processing...";
+                    const provider = activeProvider || new ethers.BrowserProvider(window.ethereum);
                     const signer = await provider.getSigner();
 
-                    // Send POL natively to your developer wallet
                     const tx = await signer.sendTransaction({
                         to: DEVELOPER_WALLET,
                         value: ethers.parseEther(costInPol)
                     });
 
-                    await tx.wait(); // Wait for confirmation on Polygon
-                    
+                    await tx.wait();
                     currentMultiplier = targetMultiplier;
-                    multText.innerText = `${currentMultiplier}x`;
-                    perClickText.innerText = currentMultiplier;
-                    
-                    alert(`Upgrade Successful! Multiplier is now ${currentMultiplier}x!`);
+                    document.getElementById('multiplierText').innerText = `${currentMultiplier}x`;
+                    document.getElementById('perClickText').innerText = currentMultiplier;
+                    alert("Upgrade Successful!");
                 } catch (err) {
-                    console.error(err);
-                    alert("Transaction failed or cancelled.");
+                    alert("Transaction declined or cancelled.");
                 } finally {
-                    e.target.disabled = false;
-                    e.target.innerText = `${costInPol} POL`;
+                    e.target.disabled = false; e.target.innerText = `${costInPol} POL`;
                 }
             });
         });
 
-        // Claim Rewards Endpoint
+        // Claim mechanics
         document.getElementById('claimBtn').addEventListener('click', async () => {
-            if (!userWalletAddress) return alert("Connect your wallet to claim tokens!");
-            if (tokens < 10000000) return alert("Minimum claim threshold is 10,000,000 VIBE!");
+            if (!userWalletAddress) return alert("Connect wallet first!");
+            if (tokens < 10000000) return alert("Minimum claim is 10,000,000 VIBE!");
 
             const claimBtn = document.getElementById('claimBtn');
-            claimBtn.disabled = true;
-            claimBtn.innerText = "Contacting Secure Distribution Core...";
+            claimBtn.disabled = true; claimBtn.innerText = "Processing...";
 
             try {
                 const response = await fetch(`${BACKEND_URL}/api/claim`, {
@@ -144,17 +147,14 @@
 
                 const data = await response.json();
                 if (data.success) {
-                    alert(`Tokens Dispatched! Tx Hash: ${data.txHash}`);
-                    tokens = 0;
-                    balanceDisplay.innerText = "0";
+                    alert("Tokens Dispatched Successfully!"); tokens = 0; balanceDisplay.innerText = "0";
                 } else {
                     alert(`System Rejection: ${data.message}`);
                 }
             } catch (err) {
-                alert("Server connection anomaly.");
+                alert("Server communication failed.");
             } finally {
-                claimBtn.disabled = false;
-                claimBtn.innerText = "Claim Click Vibe Tokens";
+                claimBtn.disabled = false; claimBtn.innerText = "Claim Click Vibe Tokens";
             }
         });
     </script>
