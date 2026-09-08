@@ -1,1 +1,57 @@
+const express = require('express');
+const cors = require('cors');
+const { ethers } = require('ethers');
 
+const app = module.exports = express();
+app.use(cors());
+app.use(express.json());
+
+const RPC_URL = "https://polygon-rpc.com"; 
+const TOKEN_CONTRACT_ADDRESS = "0x9CF5aCcF0e316550594eF8b63960d6ce8E1f11fb"; 
+const PRIVATE_KEY = process.env.PRIVATE_KEY; 
+
+const minABI = ["function transfer(address to, uint256 value) public returns (bool)"];
+const provider = new ethers.JsonRpcProvider(RPC_URL);
+const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
+const tokenContract = new ethers.Contract(TOKEN_CONTRACT_ADDRESS, minABI, wallet);
+
+const userCooldowns = {};
+
+app.post('/api/claim', async (req, res) => {
+    const { wallet: userWallet, tokenAmount } = req.body;
+
+    if (!ethers.isAddress(userWallet)) {
+        return res.status(400).json({ success: false, message: "Malformatted block address structure." });
+    }
+
+    const MINIMUM_CASHOUT = 10000000;      
+    const ABSOLUTE_MAXIMUM = 50000000000;   
+
+    if (tokenAmount < MINIMUM_CASHOUT) {
+        return res.status(400).json({ success: false, message: "Claim payload fails to meet minimum 10M cashout rule." });
+    }
+
+    if (tokenAmount > ABSOLUTE_MAXIMUM) {
+        return res.status(400).json({ success: false, message: "Transaction blocked: Exceeds safe pool throughput caps." });
+    }
+
+    const currentTime = Date.now();
+    if (userCooldowns[userWallet] && (currentTime - userCooldowns[userWallet] < 120000)) {
+        return res.status(429).json({ success: false, message: "Network synchronization cooldown: Wait 2 minutes." });
+    }
+
+    try {
+        const finalPayoutAmount = ethers.parseUnits(tokenAmount.toString(), 18); 
+        const tx = await tokenContract.transfer(userWallet, finalPayoutAmount);
+        userCooldowns[userWallet] = currentTime;
+
+        await tx.wait(1); 
+        console.log(`Successfully dispatched ${tokenAmount} VIBE to ${userWallet}`);
+        res.json({ success: true, txHash: tx.hash });
+    } catch (error) {
+        console.error("Critical Execution Interruption:", error.message);
+        res.status(500).json({ success: false, message: "On-chain core processing failed." });
+    }
+});
+
+app.listen(3000, () => console.log('Premium Paid-Upgrade Engine Active'));
