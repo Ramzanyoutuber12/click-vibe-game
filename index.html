@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Click Vibe - Verified Edition</title>
+    <style>
+        body { text-align: center; font-family: 'Segoe UI', sans-serif; background: #0d0d13; color: #fff; padding-top: 30px; }
+        .container { max-width: 500px; margin: 0 auto; background: #1a1a24; padding: 25px; border-radius: 15px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
+        #coin { width: 180px; height: 180px; background: linear-gradient(135deg, #ffd700, #ffa500); border-radius: 50%; display: inline-block; cursor: pointer; line-height: 180px; font-size: 28px; color: #111; font-weight: bold; user-select: none; box-shadow: 0 0 25px rgba(255,215,0,0.4); margin: 20px 0; transition: transform 0.05s; }
+        #coin:active { transform: scale(0.92); }
+        button { padding: 12px 24px; font-size: 16px; cursor: pointer; background: #8247e5; color: white; border: none; border-radius: 8px; font-weight: bold; margin: 5px; }
+        button:disabled { background: #444; color: #888; cursor: not-allowed; }
+        .upgrade-card { background: #252538; padding: 12px; margin: 10px 0; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
+        input { padding: 12px; width: 90%; border-radius: 8px; border: 1px solid #444; background: #111; color: #fff; margin: 10px 0; font-size: 14px; text-align: center; }
+        .note { color: #aaa; font-size: 13px; margin-bottom: 15px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Click Vibe Game</h1>
+        
+        <input type="text" id="playerWalletInput" placeholder="Paste your Polygon (0x...) wallet address here">
+        <p class="note">Enter your address above before playing.</p>
+
+        <div id="coin">VIBE</div>
+        <h2>Earned: <span id="balance">0</span> VIBE</h2>
+        <p>Current Multiplier: <span id="multiplierText">1x</span> (1 Click = <span id="perClickText">1</span> Token)</p>
+        <p style="color: #ff3366; font-weight: bold;">Minimum Cashout: 10,000,000 VIBE</p>
+
+        <hr style="border-color: #333; margin: 20px 0;">
+        <h3>⚡ Buy Speed Upgrades</h3>
+        <p style="font-size: 12px; color: #ffcc00;">Instructions: Send POL to <b>0xbC3863d3c7d3a9c40B8BB01ac6e8A27DB721331D</b> inside your wallet app, then click the upgrade button below to verify your payment receipt!</p>
+        
+        <div class="upgrade-card">
+            <span>🚀 10x Multiplier (0.5 POL)</span>
+            <button class="upgrade-btn" data-cost="0.5" data-mult="10">Verify 0.5 POL</button>
+        </div>
+        <div class="upgrade-card">
+            <span>🔥 100x Multiplier (2.0 POL)</span>
+            <button class="upgrade-btn" data-cost="2.0" data-mult="100">Verify 2.0 POL</button>
+        </div>
+        <div class="upgrade-card">
+            <span>👑 1,000x Multiplier (5.0 POL)</span>
+            <button class="upgrade-btn" data-cost="5.0" data-mult="1000">Verify 5.0 POL</button>
+        </div>
+
+        <hr style="border-color: #333; margin: 20px 0;">
+        <button id="claimBtn" style="background: #00ffcc; color: #111; width: 100%; font-size: 18px;">Claim Click Vibe Tokens</button>
+    </div>
+
+    <script>
+        let tokens = 0; 
+        let currentMultiplier = 1;
+        
+        const DEVELOPER_WALLET = "0xbC3863d3c7d3a9c40B8BB01ac6e8A27DB721331D"; 
+        const BACKEND_URL = "https://onrender.com"; // 🔄 Check if this is your exact Render URL
+
+        const coin = document.getElementById('coin');
+        const balanceDisplay = document.getElementById('balance');
+        const walletInput = document.getElementById('playerWalletInput');
+
+        coin.addEventListener('click', () => {
+            tokens += (1 * currentMultiplier);
+            balanceDisplay.innerText = tokens.toLocaleString();
+        });
+
+        // SECURE BLOCKCHAIN CHECK FOR UPGRADES
+        document.querySelectorAll('.upgrade-btn').forEach(button => {
+            button.addEventListener('click', async (e) => {
+                const costInPol = e.target.getAttribute('data-cost');
+                const targetMultiplier = parseInt(e.target.getAttribute('data-mult'));
+                const userWallet = walletInput.value.trim();
+                
+                if (!userWallet || !userWallet.startsWith("0x")) {
+                    return alert("Please enter your Polygon wallet address at the top first!");
+                }
+
+                const txHash = prompt(`To unlock the ${targetMultiplier}x multiplier, make sure you sent ${costInPol} POL to:\n${DEVELOPER_WALLET}\n\nPaste your transaction hash (TxID) receipt here to activate:`);
+                
+                if (!txHash) return;
+
+                e.target.disabled = true;
+                e.target.innerText = "Verifying on Chain...";
+
+                try {
+                    const response = await fetch(`${BACKEND_URL}/api/verify-upgrade`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ txHash: txHash.trim(), expectedCost: costInPol })
+                    });
+                    const data = await response.json();
+
+                    if (data.success) {
+                        currentMultiplier = targetMultiplier;
+                        document.getElementById('multiplierText').innerText = `${currentMultiplier}x`;
+                        document.getElementById('perClickText').innerText = currentMultiplier;
+                        alert("Blockchain payment verified! Upgrade successfully unlocked!");
+                    } else {
+                        alert(`Verification Failed: ${data.message}`);
+                    }
+                } catch (err) {
+                    alert("Error contacting payment verification server.");
+                } finally {
+                    e.target.disabled = false;
+                    e.target.innerText = `Verify ${costInPol} POL`;
+                }
+            });
+        });
+
+        // Claim logic
+        document.getElementById('claimBtn').addEventListener('click', async () => {
+            const userWallet = walletInput.value.trim();
+            if (!userWallet || !userWallet.startsWith("0x") || userWallet.length !== 42) {
+                return alert("Please enter a valid 42-character Polygon wallet address!");
+            }
+            if (tokens < 10000000) return alert("Minimum claim threshold is 10,000,000 VIBE!");
+
+            const claimBtn = document.getElementById('claimBtn');
+            claimBtn.disabled = true; claimBtn.innerText = "Processing...";
+
+            try {
+                const response = await fetch(`${BACKEND_URL}/api/claim`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ wallet: userWallet, tokenAmount: tokens })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    alert("Success! Your tokens have been automatically dispatched."); 
+                    tokens = 0; balanceDisplay.innerText = "0";
+                } else {
+                    alert(`System Rejection: ${data.message}`);
+                }
+            } catch (err) {
+                alert("Server communication failed.");
+            } finally {
+                claimBtn.disabled = false; claimBtn.innerText = "Claim Click Vibe Tokens";
+            }
+        });
+    </script>
+</body>
+</html>
