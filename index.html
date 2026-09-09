@@ -1,1 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Click Vibe - Player Edition</title>
+    <style>
+        body { text-align: center; font-family: 'Segoe UI', sans-serif; background: #0d0d13; color: #fff; padding-top: 30px; }
+        .container { max-width: 500px; margin: 0 auto; background: #1a1a24; padding: 25px; border-radius: 15px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
+        #coin { width: 180px; height: 180px; background: linear-gradient(135deg, #ffd700, #ffa500); border-radius: 50%; display: inline-block; cursor: pointer; line-height: 180px; font-size: 28px; color: #111; font-weight: bold; user-select: none; box-shadow: 0 0 25px rgba(255,215,0,0.4); margin: 20px 0; transition: transform 0.05s; }
+        #coin:active { transform: scale(0.92); }
+        button { padding: 12px 24px; font-size: 16px; cursor: pointer; background: #8247e5; color: white; border: none; border-radius: 8px; font-weight: bold; margin: 5px; }
+        button:disabled { background: #444; color: #888; cursor: not-allowed; }
+        .upgrade-card { background: #252538; padding: 12px; margin: 10px 0; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
+        input { padding: 12px; width: 90%; border-radius: 8px; border: 1px solid #444; background: #111; color: #fff; margin: 15px 0; font-size: 14px; text-align: center; }
+        .note { color: #aaa; font-size: 13px; margin-top: -5px; margin-bottom: 15px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Click Vibe Game</h1>
+        
+        <!-- 🔓 REPLACED CONNECTION WITH DIRECT INPUT BOX -->
+        <input type="text" id="playerWalletInput" placeholder="Paste your Polygon (0x...) wallet address here">
+        <p class="note">Enter your address above before buying upgrades or claiming tokens.</p>
 
+        <div id="coin">VIBE</div>
+        <h2>Earned: <span id="balance">0</span> VIBE</h2>
+        <p style="color: #aaa; font-size: 13px;">Current Multiplier: <span id="multiplierText">1x</span> (1 Click = <span id="perClickText">1</span> Token)</p>
+        <p style="color: #ff3366; font-size: 13px; font-weight: bold;">Minimum Cashout: 10,000,000 VIBE</p>
+
+        <hr style="border-color: #333; margin: 20px 0;">
+        <h3>⚡ Buy Speed Upgrades</h3>
+        <p style="font-size: 12px; color: #ffcc00; margin-bottom: 10px;">⚠️ Note: To buy upgrades, you will send POL directly to the creator's wallet address from your app.</p>
+        <div class="upgrade-card">
+            <span>🚀 10x Multiplier (Send 0.5 POL)</span>
+            <button class="upgrade-btn" data-mult="10">Unlock 10x</button>
+        </div>
+        <div class="upgrade-card">
+            <span>🔥 100x Multiplier (Send 2.0 POL)</span>
+            <button class="upgrade-btn" data-mult="100">Unlock 100x</button>
+        </div>
+        <div class="upgrade-card">
+            <span>👑 1,000x Multiplier (Send 5.0 POL)</span>
+            <button class="upgrade-btn" data-mult="1000">Unlock 1,000x</button>
+        </div>
+
+        <hr style="border-color: #333; margin: 20px 0;">
+        <button id="claimBtn" style="background: #00ffcc; color: #111; width: 100%; font-size: 18px;">Claim Click Vibe Tokens</button>
+    </div>
+
+    <script>
+        let tokens = 0; 
+        let currentMultiplier = 1;
+        
+        // 📌 CONFIGURATION VARIABLES
+        const DEVELOPER_WALLET = "0xbC3863d3c7d3a9c40B8BB01ac6e8A27DB721331D"; // Your public Creator Wallet
+        const BACKEND_URL = "https://onrender.com"; // Your live Render backend URL
+
+        const coin = document.getElementById('coin');
+        const balanceDisplay = document.getElementById('balance');
+        const walletInput = document.getElementById('playerWalletInput');
+
+        // Click mechanics
+        coin.addEventListener('click', () => {
+            tokens += (1 * currentMultiplier);
+            balanceDisplay.innerText = tokens.toLocaleString();
+        });
+
+        // Upgrade activation (Asks player to manually verify or acts as an instant game toggle)
+        document.querySelectorAll('.upgrade-btn').forEach(button => {
+            button.addEventListener('click', (e) => {
+                const targetMultiplier = parseInt(e.target.getAttribute('data-mult'));
+                const userWallet = walletInput.value.trim();
+                
+                if (!userWallet || !userWallet.startsWith("0x")) {
+                    return alert("Please enter a valid Polygon wallet address first!");
+                }
+
+                // Prompt telling them where to send the POL for verification
+                const confirmUpgrade = confirm(`To unlock this multiplier, send the corresponding POL amount to our creator address:\n\n${DEVELOPER_WALLET}\n\nHave you sent the transaction or wish to activate the multiplier session?`);
+                
+                if (confirmUpgrade) {
+                    currentMultiplier = targetMultiplier;
+                    document.getElementById('multiplierText').innerText = `${currentMultiplier}x`;
+                    document.getElementById('perClickText').innerText = currentMultiplier;
+                    alert(`Multiplier active! Keep clicking to rack up VIBE fast!`);
+                }
+            });
+        });
+
+        // Claim mechanics
+        document.getElementById('claimBtn').addEventListener('click', async () => {
+            const userWallet = walletInput.value.trim();
+
+            if (!userWallet || !userWallet.startsWith("0x") || userWallet.length !== 42) {
+                return alert("Please enter a valid 42-character Polygon wallet address (starting with 0x) to claim your tokens!");
+            }
+            if (tokens < 10000000) {
+                return alert("Minimum claim threshold is 10,000,000 VIBE!");
+            }
+
+            const claimBtn = document.getElementById('claimBtn');
+            claimBtn.disabled = true; 
+            claimBtn.innerText = "Processing Payout Engine...";
+
+            try {
+                const response = await fetch(`${BACKEND_URL}/api/claim`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ wallet: userWallet, tokenAmount: tokens })
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    alert("Success! Your tokens have been dispatched by the server."); 
+                    tokens = 0; 
+                    balanceDisplay.innerText = "0";
+                } else {
+                    alert(`System Rejection: ${data.message}`);
+                }
+            } catch (err) {
+                alert("Server communication failed. Please verify your Render backend is online.");
+            } finally {
+                claimBtn.disabled = false; 
+                claimBtn.innerText = "Claim Click Vibe Tokens";
+            }
+        });
+    </script>
+</body>
+</html>
